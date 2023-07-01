@@ -38,6 +38,15 @@
           "codeCoverage": true
         }
       }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "tsc --noEmit -p libs/contracts/tsconfig.lib.json",
+          "tsc --noEmit -p libs/contracts/tsconfig.spec.json"
+        ]
+      }
     }
   },
   "tags": []
