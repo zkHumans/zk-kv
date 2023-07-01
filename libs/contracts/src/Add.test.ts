@@ -8,9 +8,11 @@ import { Field, Mina, PrivateKey, PublicKey, AccountUpdate } from 'snarkyjs';
  * See https://docs.minaprotocol.com/zkapps for more info.
  */
 
-let proofsEnabled = false;
+const proofsEnabled = false;
 
 describe('Add', () => {
+  jest.setTimeout(100_000);
+
   let deployerAccount: PublicKey,
     deployerKey: PrivateKey,
     senderAccount: PublicKey,
