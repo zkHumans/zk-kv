@@ -62,6 +62,12 @@
       "options": {
         "lintFilePatterns": ["apps/ui/**/*.{ts,tsx,js,jsx}"]
       }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": ["tsc --noEmit -p apps/ui/tsconfig.json"]
+      }
     }
   },
   "tags": []
