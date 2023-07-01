@@ -1,11 +1,26 @@
-# contracts
+# Mina zkApp
 
-This library was generated with [Nx](https://nx.dev).
+This template uses TypeScript.
 
-## Building
+## How to build
 
-Run `nx build contracts` to build the library.
+```sh
+npm run build
+```
 
-## Running unit tests
+## How to run tests
 
-Run `nx test contracts` to execute the unit tests via [Jest](https://jestjs.io).
+```sh
+npm run test
+npm run testw # watch mode
+```
+
+## How to run coverage
+
+```sh
+npm run coverage
+```
+
+## License
+
+[Apache-2.0](LICENSE)
