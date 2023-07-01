@@ -12,8 +12,9 @@
     "zkapp"
   ],
   "scripts": {
-    "build": "nx run contracts:build",
+    "build": "../../bin/zkapp-nx.sh && cd ../../ && nx run contracts:build:production --skip-nx-cache --clean=false",
     "buildw": "nx run contracts:build --watch",
+    "clean": "rm -rf build node_modules",
     "coverage": "nx run contracts:test --coverage",
     "format": "nx format:write",
     "lint": "nx run contracts:lint --fix",
