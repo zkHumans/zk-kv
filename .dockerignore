@@ -1,0 +1,23 @@
+.dockerignore
+.git
+_/
+dist
+docker-compose.yml
+node_modules
+tmp
+
+# Note: `.env.*` files are not ignored, they configure nx
+# The main `.env` file is ignored, it has secrets!
+.env
+
+# Next.js
+apps/**/.next
+
+# Remix
+apps/**/build
+apps/**/.cache
+apps/**/tsconfig.tsbuildinfo
+
+# Mina zkApp files
+libs/contracts*/build
+libs/contracts*/keys

@@ -1,0 +1,178 @@
+version: '3.9'
+
+services:
+  # build base image
+  base-image:
+    profiles: ['build']
+    image: ${IMG_REPO}/${IMG_NAME}:${IMG_TAG}
+    build:
+      context: ./
+
+  # extend-only run-time base
+  base-service:
+    profiles: ['no-op']
+    image: ${IMG_REPO}/${IMG_NAME}:${IMG_TAG}
+    init: true
+    restart: unless-stopped
+    environment:
+      - API_URL
+      - DATABASE_URL
+      - NODE_ENV
+      - ZKAPP_ADDRESS_ADD
+
+  api:
+    profiles: ['run']
+    extends:
+      service: base-service
+    container_name: api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - ${API_PORT}
+    environment:
+      - API_HOST
+      - API_PORT
+    healthcheck:
+      test: ./bin/fetch-json.js http://${API_HOST}:${API_PORT}/api/health.check || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.api.entrypoints=websecure
+      - traefik.http.routers.api.rule=Host(`api.${HOSTNAME}`)
+      - traefik.http.routers.api.tls.certresolver=myresolver
+    command: sh -cx "
+      npx prisma migrate deploy
+      && npx nx run api:serve:production
+      --inspect=false
+      --watch=false
+      "
+
+  app:
+    profiles: ['run']
+    extends:
+      service: base-service
+    container_name: app
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - 3000
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.app.entrypoints=websecure
+      - traefik.http.routers.app.rule=Host(`app.${HOSTNAME}`)
+      - traefik.http.routers.app.tls.certresolver=myresolver
+    command: >
+      npx nx run ui:serve:production
+
+  indexer:
+    profiles: ['run']
+    extends:
+      service: base-service
+    container_name: indexer
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      - INDEXER_CYCLE_TIME
+    command: >
+      npx nx run indexer:serve:production
+
+  prisma-studio:
+    profiles: ['run', 'maintenance']
+    extends:
+      service: base-service
+    container_name: prisma-studio
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:5555:5555
+    command: >
+      npx prisma studio
+        --browser none
+
+  postgres:
+    profiles: ['run', 'dev', 'maintenance', 'setup']
+    image: postgres:latest
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+    ports:
+      - 127.0.0.1:5432:5432
+    volumes:
+      - ${HOST_DIR}/postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  setup-api:
+    profiles: ['setup']
+    extends:
+      service: base-service
+    container_name: api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - ${API_PORT}
+    healthcheck:
+      test: ./bin/fetch-json.js http://${API_HOST}:${API_PORT}/api/health.check || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    command: sh -cx "
+      npx nx run api:serve:production
+      --inspect=false
+      --watch=false
+      "
+
+  setup:
+    profiles: ['setup']
+    extends:
+      service: base-service
+    restart: 'no'
+    container_name: setup
+    depends_on:
+      setup-api:
+        condition: service_healthy
+    environment:
+      - SEED_DATA_FOR_PRISMA
+    command: >
+      npm run setup
+
+  traefik:
+    profiles: ['run', 'proxy']
+    image: traefik:v2.10
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - 443:443
+      - 127.0.0.1:8080:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${HOST_DIR}/letsencrypt:/letsencrypt
+    command:
+      - --api.insecure=true
+      - --certificatesresolvers.myresolver.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.myresolver.acme.tlschallenge=true
+      - --entrypoints.websecure.address=:443
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker=true
+
+      # for testing SSL
+      # - --certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+      # - --certificatesresolvers.myresolver.acme.storage=/letsencrypt/test-acme.json
+
+      # - --log.level=DEBUG
