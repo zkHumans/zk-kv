@@ -17,6 +17,12 @@
       "options": {
         "lintFilePatterns": ["apps/api-e2e/**/*.{js,ts}"]
       }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": ["tsc --noEmit -p apps/api-e2e/tsconfig.spec.json"]
+      }
     }
   }
 }
