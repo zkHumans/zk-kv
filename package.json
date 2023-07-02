@@ -20,6 +20,7 @@
     "@nx/js": "^16.4.2",
     "@nx/linter": "16.4.2",
     "@nx/next": "^16.4.2",
+    "@nx/node": "^16.4.2",
     "@nx/react": "16.4.2",
     "@nx/workspace": "16.4.2",
     "@testing-library/react": "14.0.0",
