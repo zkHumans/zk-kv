@@ -15,3 +15,40 @@ model log {
   message   Json
   createdAt DateTime @default(now())
 }
+
+model zkapp {
+  address   String   @id // Base58 PublicKey of zkapp
+  blockInit BigInt   @default(0) // first block height scanned for events
+  blockLast BigInt   @default(0) // last block height scanned for events
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  // relations
+  stores store[]
+}
+
+model store {
+  id         String @id
+  commitment String // root hash
+  meta       Json?
+
+  // relations
+  data         storeData[]
+  zkapp        zkapp       @relation(fields: [zkappAddress], references: [address], onDelete: Cascade, onUpdate: Cascade)
+  zkappAddress String
+}
+
+model storeData {
+  id          Int     @id @default(autoincrement())
+  key         String
+  value       String?
+  meta        Json?
+  blockHeight BigInt?
+  globalSlot  BigInt?
+
+  // relations
+  store   store  @relation(fields: [storeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  storeId String
+
+  @@unique([key, storeId])
+}
