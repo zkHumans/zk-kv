@@ -13,10 +13,11 @@
     "lib": ["es2022", "dom"],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
-    "strictPropertyInitialization": false, // to enable generic constructors, e.g. on snarkyjs CircuitValue
+    "strictPropertyInitialization": false,
     "baseUrl": ".",
     "paths": {
-      "@zk-kv/contracts": ["dist/libs/contracts/src/"]
+      "@zk-kv/contracts": ["dist/libs/contracts/src/"],
+      "@zk-kv/library": ["libs/library/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
