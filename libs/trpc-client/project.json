@@ -34,6 +34,15 @@
           "codeCoverage": true
         }
       }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "tsc --noEmit -p libs/trpc-client/tsconfig.lib.json",
+          "tsc --noEmit -p libs/trpc-client/tsconfig.spec.json"
+        ]
+      }
     }
   },
   "tags": []
