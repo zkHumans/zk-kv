@@ -15,7 +15,7 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@zk-kv/contracts": ["libs/contracts/src/index.ts"]
+      "@zk-kv/contracts": ["dist/libs/contracts/src/"]
     }
   },
   "exclude": ["node_modules", "tmp"]
