@@ -5,6 +5,7 @@
   "scripts": {
     "build": "nx run-many --targets=lint,typecheck,build --configuration=development --projects=* --exclude=ui",
     "buildw": "npm run build -- --watch",
+    "commit": "cz",
     "dev": "npm run build && nx run ui:serve:development",
     "test": "nx run-many --targets=test",
     "testw": "npm run test -- --watch"
@@ -53,6 +54,11 @@
     "snarkyjs": "^0.11.3",
     "tailwindcss": "^3.3.2",
     "tslib": "^2.3.0"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
   },
   "nx": {
     "includedScripts": []
