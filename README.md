@@ -1,5 +1,7 @@
 # ZkKv
 
+[![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
+
 ## How to build
 
 ```sh
@@ -23,13 +25,18 @@ npm run testw # watch mode
 ## How to deploy contracts
 
 ```sh
-# zkapp-cli must be installed globally:
+# install zkapp-cli globally:
 npm install -g zkapp-cli
 
 cd libs/contracts
 zk config
 zk deploy
 ```
+
+## Contributing
+
+- Follow [`commitizen's conventional-changelog`](https://github.com/commitizen/cz-cli) commit message format
+  - Use `npm run commit` or `npx cz` for a prompt to assist writing the commit message properly
 
 ## Nx
 
