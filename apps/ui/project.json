@@ -3,6 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "apps/ui",
   "projectType": "application",
+  "implicitDependencies": ["contracts"],
   "targets": {
     "build": {
       "executor": "@nx/next:build",
