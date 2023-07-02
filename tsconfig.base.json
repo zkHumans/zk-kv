@@ -13,6 +13,7 @@
     "lib": ["es2022", "dom"],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
+    "strictPropertyInitialization": false, // to enable generic constructors, e.g. on snarkyjs CircuitValue
     "baseUrl": ".",
     "paths": {
       "@zk-kv/contracts": ["dist/libs/contracts/src/"]
