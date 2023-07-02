@@ -7,7 +7,7 @@
     "buildw": "npm run build -- --watch",
     "commit": "cz",
     "dev": "npm run build && nx run ui:serve:development",
-    "postinstall": "npx prisma generate",
+    "postinstall": "npx prisma generate && ./bin/prisma-cleanup.sh",
     "seed": "NODE_OPTIONS='--es-module-specifier-resolution=node --no-warnings' ts-node --esm libs/prisma/seed.ts",
     "setup": "prisma generate && prisma migrate deploy && prisma db seed",
     "test": "nx run-many --targets=test",
