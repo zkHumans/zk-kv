@@ -3,12 +3,15 @@
   "compilerOptions": {
     "jsx": "preserve",
     "allowJs": true,
+    "lib": ["dom", "dom.iterable", "esnext"],
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "resolveJsonModule": true,
+    "declaration": true,
+    "noFallthroughCasesInSwitch": true,
     "isolatedModules": true,
     "incremental": true,
     "plugins": [
