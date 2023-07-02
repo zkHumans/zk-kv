@@ -2,7 +2,13 @@
   "name": "@zk-kv/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "build": "nx run-many --targets=lint,typecheck,build --configuration=development --projects=* --exclude=ui",
+    "buildw": "npm run build -- --watch",
+    "dev": "npm run build && nx run ui:serve:development",
+    "test": "nx run-many --targets=test",
+    "testw": "npm run test -- --watch"
+  },
   "private": true,
   "devDependencies": {
     "@nx/eslint-plugin": "16.4.2",
