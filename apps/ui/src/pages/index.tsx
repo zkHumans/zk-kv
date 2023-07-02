@@ -1,4 +1,3 @@
-
 import Head from 'next/head';
 import Image from 'next/image';
 import { useEffect } from 'react';
@@ -9,7 +8,7 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       const { Mina, PublicKey } = await import('snarkyjs');
-      const { Add } = await import('../../../contracts/build/src/');
+      const { Add } = await import('@zk-kv/contracts');
 
       // Update this to use the address (public key) for your zkApp account.
       // To try it out, you can try this address for an example "Add" smart contract that we've deployed to
