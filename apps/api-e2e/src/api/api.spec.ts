@@ -1,10 +1,21 @@
-import axios from 'axios';
+import { trpc } from '@zk-kv/trpc-client';
 
-describe('GET /', () => {
-  it('should return a message', async () => {
-    const res = await axios.get(`/`);
+describe('API e2e', () => {
+  it('has process.env.API_URL', async () => {
+    console.log('API_URL', process.env.API_URL);
+    expect(process.env.API_URL).toBeDefined();
+  });
 
-    expect(res.status).toBe(200);
-    expect(res.data).toEqual({ message: 'Hello API' });
+  it('/api/health.check', async () => {
+    const r = await trpc.health.check.query();
+    expect(r).toBe(1);
+  });
+
+  it('/api/meta', async () => {
+    const meta = await trpc.meta.query();
+    console.log('meta', meta);
+
+    expect(meta.env).toEqual(process.env['NODE_ENV']);
+    expect(meta.address.Add).toEqual(process.env['ZKAPP_ADDRESS_ADD'] ?? '');
   });
 });
