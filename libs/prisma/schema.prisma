@@ -9,3 +9,9 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model log {
+  id        Int      @id @default(autoincrement())
+  message   Json
+  createdAt DateTime @default(now())
+}
