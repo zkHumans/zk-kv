@@ -11,7 +11,7 @@
       "options": {
         "platform": "node",
         "outputPath": "dist/apps/indexer",
-        "format": ["cjs"],
+        "format": ["esm"],
         "bundle": false,
         "main": "apps/indexer/src/main.ts",
         "tsConfig": "apps/indexer/tsconfig.app.json",
@@ -70,6 +70,15 @@
           "ci": true,
           "codeCoverage": true
         }
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "commands": [
+          "tsc --noEmit -p apps/indexer/tsconfig.app.json",
+          "tsc --noEmit -p apps/indexer/tsconfig.spec.json"
+        ]
       }
     }
   },
