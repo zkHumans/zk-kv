@@ -17,5 +17,6 @@ describe('API e2e', () => {
 
     expect(meta.env).toEqual(process.env['NODE_ENV']);
     expect(meta.address.Add).toEqual(process.env['ZKAPP_ADDRESS_ADD'] ?? '');
+    expect(meta.address.ZKKV).toEqual(process.env['ZKAPP_ADDRESS_ZKKV'] ?? '');
   });
 });
