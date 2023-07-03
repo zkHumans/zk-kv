@@ -1,0 +1,64 @@
+########################################################################
+# Environment variables declared in this file are available to:
+# - Nx
+# - Docker
+# - Prisma
+#
+# See the documentation for more detail:
+# - https://nx.dev/recipes/environment-variables/define-environment-variables
+# - https://docs.docker.com/compose/environment-variables/env-file/
+# - https://pris.ly/d/prisma-schema#accessing-environment-variables-from-the-schema
+#
+# Put secrets here (and only here!)
+########################################################################
+
+
+NODE_ENV="development"
+
+
+########################################################################
+# docker
+########################################################################
+IMG_REPO=zkkv
+IMG_NAME=zkkv
+IMG_TAG=latest
+
+# host directory for persisted files
+HOST_DIR=./srv
+
+# default hostname and email for https
+HOSTNAME=localhost
+# LETSENCRYPT_EMAIL=
+
+
+########################################################################
+# prisma
+########################################################################
+POSTGRES_DB="postgres"
+POSTGRES_USER="postgres"
+POSTGRES_PASSWORD="postgres"
+
+# Prisma supports the native connection string format for PostgreSQL, MySQL, SQLite, SQL Server, MongoDB and CockroachDB.
+# See the documentation for all the connection string options: https://pris.ly/d/connection-strings
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres?schema=public"
+
+
+########################################################################
+# apps/api
+########################################################################
+API_AUTH=":TODO:"
+API_URL="http://localhost:3001/api"
+API_HOST="localhost"
+API_PORT=3001
+
+# the address (PublicKey base58) of zkApp account(s)
+# served through api /meta for dynamic access
+ZKAPP_ADDRESS_ADD=
+
+
+########################################################################
+# apps/indexer
+########################################################################
+
+# how often the indexer runs (seconds)
+INDEXER_CYCLE_TIME="180"
