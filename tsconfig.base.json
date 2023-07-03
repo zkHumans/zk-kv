@@ -19,7 +19,8 @@
       "@zk-kv/contracts": ["dist/libs/contracts/src/"],
       "@zk-kv/library": ["libs/library/src/index.ts"],
       "@zk-kv/trpc": ["libs/trpc/src/index.ts"],
-      "@zk-kv/trpc-client": ["libs/trpc-client/src/index.ts"]
+      "@zk-kv/trpc-client": ["libs/trpc-client/src/index.ts"],
+      "@zk-kv/utils": ["libs/utils/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
