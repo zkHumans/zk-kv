@@ -54,6 +54,7 @@ API_PORT=3001
 # the address (PublicKey base58) of zkApp account(s)
 # served through api /meta for dynamic access
 ZKAPP_ADDRESS_ADD=
+ZKAPP_ADDRESS_ZKKV=
 
 
 ########################################################################
