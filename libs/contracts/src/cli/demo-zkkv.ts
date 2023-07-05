@@ -21,11 +21,11 @@ const proofsEnabled = strToBool(process.env['ZK_PROOFS_ENABLED']) ?? true;
 console.log('ZK_PROOFS_ENABLED:', proofsEnabled);
 
 // performance logging
-const t0 = performance.now();
-const t = () => Number(((performance.now() - t0) / 1000 / 60).toFixed(2)) + 'm';
+const label = '[time]';
+console.time(label);
 const log = (
   ...args: any[] /* eslint-disable-line @typescript-eslint/no-explicit-any */
-) => console.log(`@T+${t()} |`, ...args);
+) => console.timeLog(label, ...args);
 
 if (proofsEnabled) {
   log('compile SmartContract...');
