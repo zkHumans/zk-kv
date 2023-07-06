@@ -17,8 +17,22 @@ import {
   eventStoreDefault,
 } from '../ZKKV';
 
-const proofsEnabled = strToBool(process.env['ZK_PROOFS_ENABLED']) ?? true;
-console.log('ZK_PROOFS_ENABLED:', proofsEnabled);
+////////////////////////////////////////////////////////////////////////
+// set config from env
+////////////////////////////////////////////////////////////////////////
+
+let proofsEnabled = strToBool(process.env['ZK_PROOFS_ENABLED']) ?? true;
+const recursionEnabled = strToBool(process.env['RECURSION_ENABLED']) ?? true;
+
+// recursion requires compiled contract
+if (recursionEnabled) proofsEnabled = true;
+
+console.log('ZK Proofs Enabled:', proofsEnabled);
+console.log('Recursion Enabled:', recursionEnabled);
+
+////////////////////////////////////////////////////////////////////////
+// lil utilities
+////////////////////////////////////////////////////////////////////////
 
 // performance logging
 const label = '[time]';
@@ -29,7 +43,7 @@ const log = (
 
 if (proofsEnabled) {
   log('compile SmartContract...');
-  await ZKKV.compile();
+  const { verificationKey } = await ZKKV.compile();
   log('...compile SmartContract');
 }
 
@@ -38,6 +52,17 @@ const hr = () =>
   console.log(
     '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
   );
+
+// celebrate success!
+const tada = () => {
+  console.log();
+  console.log('🚀🚀🚀 Works! 🚀🚀🚀');
+  process.exit(0);
+};
+
+////////////////////////////////////////////////////////////////////////
+// go!
+////////////////////////////////////////////////////////////////////////
 
 const Local = Mina.LocalBlockchain({ proofsEnabled });
 Mina.setActiveInstance(Local);
@@ -209,6 +234,69 @@ log('setStoreData...');
 log('...setStoreData');
 numEvents = await processEvents(numEvents);
 
+if (!recursionEnabled) tada();
+
+////////////////////////////////////////////////////////////////////////
+// Concurrency
+////////////////////////////////////////////////////////////////////////
+hr();
+log('Recursion is supr powr!');
+
+////////////////////////////////////
+// set Data in Store
+////////////////////////////////////
+hr();
+log('setStoreData...');
+{
+  const i = 3; // which store
+
+  // new key:value pair within the store
+  const key = Field(222);
+  const value1 = Field(999);
+
+  // use EMPTY for current value as storeData has not yet been added
+  const value0 = EMPTY;
+
+  // create a new store from the current to represent the change
+  const storeMM = storeMMs[i];
+  storeMM.set(key, value1);
+  const store1 = stores[i].setCommitment(storeMM.getRoot());
+
+  const storeData0 = StoreData.init(stores[i], key, value0);
+  const storeData1 = StoreData.init(store1, key, value1);
+
+  await setStoreData(
+    storeData0,
+    storeData1,
+    storeMMs[i],
+    storeManagerMerkleMap,
+    recursionEnabled
+  );
+}
+log('...setStoreData');
+numEvents = await processEvents(numEvents);
+
+////////////////////////////////////
+// commit pending transformations
+////////////////////////////////////
+hr();
+log('commitPendingTransformations...');
+{
+  // TODO generate recursive proof, submit it
+
+  log('  tx: prove() sign() send()...');
+  const tx = await Mina.transaction(feePayer, () => {
+    zkapp.commitPendingTransformations();
+  });
+  await tx.prove();
+  await tx.sign([feePayerKey]).send();
+  log('  ...tx: prove() sign() send()');
+}
+log('...commitPendingTransformations');
+numEvents = await processEvents(numEvents);
+
+tada();
+
 ////////////////////////////////////////////////////////////////////////
 // helper functions
 ////////////////////////////////////////////////////////////////////////
@@ -256,6 +344,22 @@ async function processEvents(offset = 0) {
           }
 
           // off-chain storage should set the record
+        }
+        break;
+
+      case 'store:set:pending':
+        {
+          console.log('Event: store:set:pending', js);
+
+          // off-chain storage should create the record as pending
+        }
+        break;
+
+      case 'store:commit':
+        {
+          console.log('Event: store:commit', js);
+
+          // off-chain storage should create the record as pending
         }
         break;
     }
@@ -339,36 +443,35 @@ async function setStore(store0: Store, store1: Store, managerMM: MerkleMap) {
 }
 
 async function setStoreData(
-  storeData0: StoreData,
-  storeData1: StoreData,
+  data0: StoreData,
+  data1: StoreData,
   storeMM: MerkleMap,
-  managerMM: MerkleMap
+  managerMM: MerkleMap,
+  concurrent = false
 ) {
   // get witness for store within the manager
-  const witnessManager = managerMM.getWitness(storeData1.store.getKey());
+  const witnessManager = managerMM.getWitness(data1.store.getKey());
 
   // get witness for data within the store
-  const witnessStore = storeMM.getWitness(storeData1.getKey());
+  const witnessStore = storeMM.getWitness(data1.getKey());
 
   log('  tx: prove() sign() send()...');
   const tx = await Mina.transaction(feePayer, () => {
-    zkapp.setStoreData(storeData0, storeData1, witnessStore, witnessManager);
+    concurrent
+      ? zkapp.setStoreDataConcurrent(data0, data1, witnessStore, witnessManager)
+      : zkapp.setStoreData(data0, data1, witnessStore, witnessManager);
   });
   await tx.prove();
   await tx.sign([feePayerKey]).send();
   log('  ...tx: prove() sign() send()');
 
-  // if tx was successful, we can update our off-chain storage
-  // in production, the indexer updates off-chain storage
-  storeMM.set(storeData1.getKey(), storeData1.getValue());
-  managerMM.set(storeData1.store.getKey(), storeMM.getRoot());
-  log('  managerMM.getRoot()         :', managerMM.getRoot().toString());
-  log(
-    '  zkapp.storeCommitment.get() :',
-    zkapp.storeCommitment.get().toString()
-  );
-  zkapp.storeCommitment.get().assertEquals(managerMM.getRoot());
+  if (!concurrent) {
+    // if tx was successful, we can update our off-chain storage
+    // in production, the indexer updates off-chain storage
+    storeMM.set(data1.getKey(), data1.getValue());
+    managerMM.set(data1.store.getKey(), storeMM.getRoot());
+    log('  managerMM getRoot()   :', managerMM.getRoot().toString());
+    log('  zkapp storeCommitment :', zkapp.storeCommitment.get().toString());
+    zkapp.storeCommitment.get().assertEquals(managerMM.getRoot());
+  }
 }
-
-console.log();
-console.log('🚀🚀🚀 Works! 🚀🚀🚀');
