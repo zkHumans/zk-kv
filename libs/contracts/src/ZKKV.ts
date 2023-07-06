@@ -9,6 +9,7 @@ import {
   state,
   Experimental,
   SelfProof,
+  Poseidon,
 } from 'snarkyjs';
 
 /**
@@ -55,6 +56,15 @@ export class StoreData extends Struct({
     return [this.meta0, this.meta1, this.meta2];
   }
 
+  getChecksum() {
+    return Poseidon.hash([
+      this.store.getKey(),
+      this.getKey(),
+      this.getValue(),
+      ...this.getMeta(),
+    ]);
+  }
+
   static init(
     store: Store,
     key: Field,
@@ -97,6 +107,9 @@ export class StoreDataTransformation extends Struct({
   witnessManager: MerkleMapWitness,
 }) {}
 
+/**
+ * Emitted by events: 'store:set' 'store:new'
+ */
 export class EventStore extends Struct({
   id: Field, // store identifier
   root0: Field, // before state change
@@ -114,9 +127,19 @@ export class EventStore extends Struct({
 }) {}
 
 /**
- * emitted by event 'store:set:pending'
+ * Emitted by event 'store:pending'
  */
 export class EventStorePending extends Struct({
+  /**
+   * zkApp's store commitment at the time of the event.
+   */
+  commitmentPending: Field,
+
+  /**
+   * A hash of the new store data for data integrity validation.
+   */
+  settlementChecksum: Field,
+
   /**
    * Commited StoreData, its current state.
    */
@@ -126,6 +149,27 @@ export class EventStorePending extends Struct({
    * New StoreData.
    */
   data1: StoreData,
+}) {}
+
+/**
+ * Emitted by event 'store:commit'
+ */
+export class EventStoreCommit extends Struct({
+  /**
+   * zkApp's store commitment that was pending and is being settled.
+   *
+   * This is the commitment that all pending transformations proved
+   * against when they were created. The initial root of the recursive
+   * rollup state transformation proof.
+   */
+  commitmentPending: Field,
+
+  /**
+   * zkApp's store commitment now that pending transformations are settled.
+   *
+   * The latest root of the recursive rollup state transformation proof.
+   */
+  commitmentSettled: Field, // latest root
 }) {}
 
 // "empty" or default value for a key not within a MerkleMap
@@ -140,6 +184,7 @@ export const eventStoreDefault = {
   meta: [EMPTY, EMPTY, EMPTY],
 };
 
+// WIP
 export class Action extends Struct({
   root0: Field, // the zkApp's storeCommitment
   data0: StoreData, // current store data
@@ -155,6 +200,11 @@ export class RollupState extends Struct({
     latestRoot: Field,
     transformation: StoreDataTransformation
   ) {
+    // how this differs from rollup-state example:
+    // key:          data0.getKey() || data1.getKey() --> same key
+    // currentValue: data0.getValue()
+    // incrementAmount -> currentValue.add(incrementAmount): data1.getValue()
+
     const { data0, data1, witnessStore, witnessManager } = transformation;
 
     // assert keys (store identifiers) are the same - necessary?
@@ -269,8 +319,7 @@ export class ZKKV extends SmartContract {
     'store:pending': EventStorePending,
 
     // triggers pending events to be committed
-    // previous storeCommitment that is settled
-    'store:commit': Field,
+    'store:commit': EventStoreCommit,
   };
 
   @state(Field) num = State<Field>();
@@ -453,10 +502,16 @@ export class ZKKV extends SmartContract {
       'current StoreData assertion failed!'
     );
 
+    // WIP: ?: what should be dispatched?
+    // ?: pending record id --> settlementChecksum
     this.reducer.dispatch({ root0: mgrRoot0, data0, data1 });
 
-    this.emitEvent('store:pending', { data0, data1 });
-
+    this.emitEvent('store:pending', {
+      commitmentPending: mgrStoreCommitment,
+      settlementChecksum: data1.getChecksum(),
+      data0,
+      data1,
+    });
   }
 
   @method commitPendingTransformations(proof: RollupTransformationsProof) {
@@ -473,6 +528,9 @@ export class ZKKV extends SmartContract {
     this.storeCommitment.set(proof.publicInput.latestRoot);
 
     // inform storage to commit pending transformations proven on the initial commitment
-    this.emitEvent('store:commit', proof.publicInput.initialRoot);
+    this.emitEvent('store:commit', {
+      commitmentPending: proof.publicInput.initialRoot,
+      commitmentSettled: proof.publicInput.latestRoot,
+    });
   }
 }

@@ -6,6 +6,8 @@ import {
   MerkleMap,
   Poseidon,
   PrivateKey,
+  Proof,
+  verify,
 } from 'snarkyjs';
 import { strToBool } from '@zk-kv/utils';
 import {
@@ -15,6 +17,10 @@ import {
   StoreData,
   ZKKV,
   eventStoreDefault,
+  RollupTransformations,
+  EventStorePending,
+  RollupState,
+  StoreDataTransformation,
 } from '../ZKKV';
 
 ////////////////////////////////////////////////////////////////////////
@@ -41,9 +47,18 @@ const log = (
   ...args: any[] /* eslint-disable-line @typescript-eslint/no-explicit-any */
 ) => console.timeLog(label, ...args);
 
+let rollupTransformationVerificationKey: string;
+if (recursionEnabled) {
+  // these need to be compiled before ZKKV
+  log('compile ZkProgram(s)...');
+  const { verificationKey } = await RollupTransformations.compile();
+  rollupTransformationVerificationKey = verificationKey;
+  log('...compile ZkProgram(s)');
+}
+
 if (proofsEnabled) {
   log('compile SmartContract...');
-  const { verificationKey } = await ZKKV.compile();
+  await ZKKV.compile();
   log('...compile SmartContract');
 }
 
@@ -94,6 +109,9 @@ storeManagerMerkleMap.set(stores[1].getKey(), stores[1].getValue());
 const initialManagerMM = new MerkleMap();
 initialManagerMM.set(stores[0].getKey(), stores[0].getValue());
 initialManagerMM.set(stores[1].getKey(), stores[1].getValue());
+
+// pending store events
+const storePending = [] as Array<EventStorePending>;
 
 // interface with the zkApp itself as a Store
 // and conform its off-chain storage mechanics
@@ -282,15 +300,12 @@ numEvents = await processEvents(numEvents);
 hr();
 log('commitPendingTransformations...');
 {
-  // TODO generate recursive proof, submit it
-
-  log('  tx: prove() sign() send()...');
-  const tx = await Mina.transaction(feePayer, () => {
-    zkapp.commitPendingTransformations();
-  });
-  await tx.prove();
-  await tx.sign([feePayerKey]).send();
-  log('  ...tx: prove() sign() send()');
+  // generate recursive proof, submit it
+  await commitPendingTransformations(
+    storePending,
+    storeManagerMerkleMap,
+    storeMMs
+  );
 }
 log('...commitPendingTransformations');
 numEvents = await processEvents(numEvents);
@@ -347,11 +362,13 @@ async function processEvents(offset = 0) {
         }
         break;
 
-      case 'store:set:pending':
+      case 'store:pending':
         {
-          console.log('Event: store:set:pending', js);
+          console.log('Event: store:pending', js);
 
           // off-chain storage should create the record as pending
+
+          storePending.push(EventStorePending.fromJSON(js));
         }
         break;
 
@@ -361,6 +378,10 @@ async function processEvents(offset = 0) {
 
           // off-chain storage should create the record as pending
         }
+        break;
+
+      default:
+        console.log(`Event: ${event.type}`, js);
         break;
     }
   }
@@ -474,4 +495,98 @@ async function setStoreData(
     log('  zkapp storeCommitment :', zkapp.storeCommitment.get().toString());
     zkapp.storeCommitment.get().assertEquals(managerMM.getRoot());
   }
+}
+
+async function commitPendingTransformations(
+  pendingEvents: Array<EventStorePending>,
+  managerMM: MerkleMap,
+  storesMM: Array<MerkleMap>
+) {
+  console.log('pending events:', pendingEvents);
+
+  // lil help... db lookup by store id are easy
+  const whichStore = (identifier: Field) => {
+    for (let i = 0; i < 4; i++)
+      if (stores[i].identifier.equals(identifier)) return i;
+    return -1;
+  };
+
+  const rollupStepInfo: any[] = [];
+
+  log('computing transitions...');
+  pendingEvents.forEach(({ data0, data1 }) => {
+    // get witness for data within the store
+    const storeMM = storesMM[whichStore(data1.store.identifier)];
+    const witnessStore = storeMM.getWitness(data1.getKey());
+
+    // get witness for store within the manager
+    const witnessManager = managerMM.getWitness(data1.store.getKey());
+
+    const initialRoot = managerMM.getRoot();
+
+    storeMM.set(data1.getKey(), data1.getValue());
+    managerMM.set(data1.store.getKey(), storeMM.getRoot());
+
+    const latestRoot = managerMM.getRoot();
+
+    rollupStepInfo.push({
+      initialRoot,
+      latestRoot,
+      transformation: new StoreDataTransformation({
+        data0,
+        data1,
+        witnessStore,
+        witnessManager,
+      }),
+    });
+  });
+  log('...computing transitions');
+
+  log('making first set of proofs...');
+  const rollupProofs: Proof<RollupState, void>[] = [];
+  for (const { initialRoot, latestRoot, transformation } of rollupStepInfo) {
+    const rollup = RollupState.createOneStep(
+      initialRoot,
+      latestRoot,
+      transformation
+    );
+    const proof = await RollupTransformations.oneStep(
+      rollup,
+      initialRoot,
+      latestRoot,
+      transformation
+    );
+    rollupProofs.push(proof);
+  }
+  log('...making first set of proofs');
+
+  log('merging proofs...');
+  let proof: Proof<RollupState, void> = rollupProofs[0];
+  for (let i = 1; i < rollupProofs.length; i++) {
+    const rollup = RollupState.createMerged(
+      proof.publicInput,
+      rollupProofs[i].publicInput
+    );
+    const mergedProof = await RollupTransformations.merge(
+      rollup,
+      proof,
+      rollupProofs[i]
+    );
+    proof = mergedProof;
+  }
+  log('...merging proofs');
+
+  log('verifying rollup...');
+  console.log(proof.publicInput.latestRoot.toString());
+  const ok = await verify(proof.toJSON(), rollupTransformationVerificationKey);
+  console.log('ok', ok);
+  log('...verifying rollup');
+
+  log('  tx: prove() sign() send()...');
+  const tx = await Mina.transaction(feePayer, () => {
+    zkapp.commitPendingTransformations(proof);
+  });
+  await tx.prove();
+  await tx.sign([feePayerKey]).send();
+  log('  ...tx: prove() sign() send()');
 }
