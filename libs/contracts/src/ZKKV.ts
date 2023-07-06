@@ -1,40 +1,15 @@
 import {
-  Field,
   MerkleMapWitness,
+  Field,
+  Reducer,
   SmartContract,
   State,
   Struct,
   method,
   state,
+  Experimental,
+  SelfProof,
 } from 'snarkyjs';
-
-export class EventStore extends Struct({
-  id: Field, // store identifier
-  root0: Field, // before state change
-  root1: Field, // after state change
-  key: Field,
-  value: Field,
-
-  /**
-   * Meta or protocol data. It is passed as-is (not hashed/encrypted).
-   *
-   * Increase or decrease the number of fields as needed then update
-   * eventStoreDefault.meta and StoreData.meta* to match.
-   */
-  meta: [Field, Field, Field],
-}) {}
-
-// "empty" or default value for a key not within a MerkleMap
-export const EMPTY = Field(0);
-
-export const eventStoreDefault = {
-  id: EMPTY,
-  root0: EMPTY,
-  root1: EMPTY,
-  key: EMPTY,
-  value: EMPTY,
-  meta: [EMPTY, EMPTY, EMPTY],
-};
 
 /**
  * A Store.
@@ -97,17 +72,205 @@ export class StoreData extends Struct({
   }
 }
 
+/**
+ * State transformation of StoreData.
+ */
+export class StoreDataTransformation extends Struct({
+  /**
+   * Commited StoreData, its current state.
+   */
+  data0: StoreData,
+
+  /**
+   * New StoreData.
+   */
+  data1: StoreData,
+
+  /**
+   * Merkle proof of the data within the store.
+   */
+  witnessStore: MerkleMapWitness,
+
+  /**
+   * Merkle Proof of the Store within the manager (zkApp).
+   */
+  witnessManager: MerkleMapWitness,
+}) {}
+
+export class EventStore extends Struct({
+  id: Field, // store identifier
+  root0: Field, // before state change
+  root1: Field, // after state change
+  key: Field,
+  value: Field,
+
+  /**
+   * Meta or protocol data. It is passed as-is (not hashed/encrypted).
+   *
+   * Increase or decrease the number of fields as needed then update
+   * eventStoreDefault.meta and StoreData.meta* to match.
+   */
+  meta: [Field, Field, Field],
+}) {}
+
+/**
+ * emitted by event 'store:set:pending'
+ */
+export class EventStorePending extends Struct({
+  /**
+   * Commited StoreData, its current state.
+   */
+  data0: StoreData,
+
+  /**
+   * New StoreData.
+   */
+  data1: StoreData,
+}) {}
+
+// "empty" or default value for a key not within a MerkleMap
+export const EMPTY = Field(0);
+
+export const eventStoreDefault = {
+  id: EMPTY,
+  root0: EMPTY,
+  root1: EMPTY,
+  key: EMPTY,
+  value: EMPTY,
+  meta: [EMPTY, EMPTY, EMPTY],
+};
+
+export class Action extends Struct({
+  root0: Field, // the zkApp's storeCommitment
+  data0: StoreData, // current store data
+  data1: StoreData, // new store data
+}) {}
+
+export class RollupState extends Struct({
+  initialRoot: Field,
+  latestRoot: Field,
+}) {
+  static createOneStep(
+    initialRoot: Field,
+    latestRoot: Field,
+    transformation: StoreDataTransformation
+  ) {
+    const { data0, data1, witnessStore, witnessManager } = transformation;
+
+    // assert keys (store identifiers) are the same - necessary?
+    data0.getKey().assertEquals(data1.getKey(), 'StoreData keys do not match!');
+    data0.store
+      .getKey()
+      .assertEquals(data1.store.getKey(), 'Store keys do not match!');
+
+    // assert current value in the store in the manager
+    const [storeRoot0, storeKey0] = witnessStore.computeRootAndKey(
+      data0.getValue()
+    );
+    const [mgrRoot0] = witnessManager.computeRootAndKey(storeRoot0);
+    mgrRoot0.assertEquals(initialRoot, 'current StoreData assertion failed!');
+    storeKey0.assertEquals(data0.getKey());
+
+    // assert latest root based on the new data in the store in the manager
+    const [storeRoot1] = witnessStore.computeRootAndKey(data1.getValue());
+    const [mgrRoot1] = witnessManager.computeRootAndKey(storeRoot1);
+    latestRoot.assertEquals(mgrRoot1);
+
+    return new RollupState({
+      initialRoot,
+      latestRoot,
+    });
+  }
+
+  static createMerged(state1: RollupState, state2: RollupState) {
+    return new RollupState({
+      initialRoot: state1.initialRoot,
+      latestRoot: state2.latestRoot,
+    });
+  }
+
+  static assertEquals(state1: RollupState, state2: RollupState) {
+    state1.initialRoot.assertEquals(state2.initialRoot);
+    state1.latestRoot.assertEquals(state2.latestRoot);
+  }
+}
+
+export const RollupTransformations = Experimental.ZkProgram({
+  publicInput: RollupState,
+
+  methods: {
+    oneStep: {
+      privateInputs: [Field, Field, StoreDataTransformation],
+      method(
+        state: RollupState,
+        initialRoot: Field,
+        latestRoot: Field,
+        transformation: StoreDataTransformation
+      ) {
+        const computedState = RollupState.createOneStep(
+          initialRoot,
+          latestRoot,
+          transformation
+        );
+        RollupState.assertEquals(computedState, state);
+      },
+    },
+
+    merge: {
+      privateInputs: [SelfProof, SelfProof],
+
+      method(
+        newState: RollupState,
+        rollup1proof: SelfProof<RollupState, void>,
+        rollup2proof: SelfProof<RollupState, void>
+      ) {
+        rollup1proof.verify(); // A -> B
+        rollup2proof.verify(); // B -> C
+
+        rollup1proof.publicInput.initialRoot.assertEquals(newState.initialRoot);
+
+        rollup1proof.publicInput.latestRoot.assertEquals(
+          rollup2proof.publicInput.initialRoot
+        );
+
+        rollup2proof.publicInput.latestRoot.assertEquals(newState.latestRoot);
+      },
+    },
+  },
+});
+
+export const RollupTransformationsProof_ = Experimental.ZkProgram.Proof(
+  RollupTransformations
+);
+export class RollupTransformationsProof extends RollupTransformationsProof_ {}
+
 export class ZKKV extends SmartContract {
-  // off-chain storage identifier (id)
+  /**
+   * Static identifier of the Store.
+   */
   @state(Field) storeIdentifier = State<Field>();
 
-  // off-chain storage commitment (root)
+  /**
+   * Root of the Merkle Map that stores all committed Stores.
+   */
   @state(Field) storeCommitment = State<Field>();
+
+  /**
+   * Accumulator of all emitted StoreData state transformations.
+   */
+  @state(Field) accumulatedTransformations = State<Field>();
+
+  reducer = Reducer({ actionType: Action });
 
   override events = {
     // for updating off-chain data
     'store:new': EventStore,
     'store:set': EventStore,
+    'store:pending': EventStorePending,
+
+    // triggers pending events to be committed
+    // previous storeCommitment that is settled
+    'store:commit': Field,
   };
 
   @state(Field) num = State<Field>();
@@ -202,6 +365,8 @@ export class ZKKV extends SmartContract {
    *
    * @param {StoreData} data0 The store with previosly recorded value.
    * @param {StoreData} data1 The store with new value to update.
+   * @param {MerkleMapWitness} witnessStore Witness for Store within Manager.
+   * @param {MerkleMapWitness} witnessManager Witness for Data within Store.
    */
   @method setStoreData(
     data0: StoreData,
@@ -251,5 +416,63 @@ export class ZKKV extends SmartContract {
       key: data1.store.getKey(),
       value: data1.store.getValue(),
     });
+  }
+
+  /**
+   * Update data in a store that has been added to the Manager.
+   * Uses reducer for txn concurrency.
+   *
+   * To add store data, use data0 value = EMPTY
+   * To del store data, use data1 value = EMPTY
+   *
+   * @param {StoreData} data0 The store with previosly recorded value.
+   * @param {StoreData} data1 The store with new value to update.
+   * @param {MerkleMapWitness} witnessStore Witness for Store within Manager.
+   * @param {MerkleMapWitness} witnessManager Witness for Data within Store.
+   */
+  @method setStoreDataConcurrent(
+    data0: StoreData,
+    data1: StoreData,
+    witnessStore: MerkleMapWitness,
+    witnessManager: MerkleMapWitness
+  ) {
+    const mgrStoreCommitment = this.storeCommitment.getAndAssertEquals();
+
+    // assert keys (store identifiers) are the same
+    data0.getKey().assertEquals(data1.getKey(), 'StoreData keys do not match!');
+    data0.store
+      .getKey()
+      .assertEquals(data1.store.getKey(), 'Store keys do not match!');
+
+    // assert the transformation against the current zkApp storeCommitment
+    // data in the store in the manager
+    const [storeRoot0] = witnessStore.computeRootAndKey(data0.getValue());
+    const [mgrRoot0] = witnessManager.computeRootAndKey(storeRoot0);
+    mgrRoot0.assertEquals(
+      mgrStoreCommitment,
+      'current StoreData assertion failed!'
+    );
+
+    this.reducer.dispatch({ root0: mgrRoot0, data0, data1 });
+
+    this.emitEvent('store:pending', { data0, data1 });
+
+  }
+
+  @method commitPendingTransformations(proof: RollupTransformationsProof) {
+    const mgrStoreCommitment = this.storeCommitment.getAndAssertEquals();
+
+    // ensure the proof started from the zkApp's current commitment
+    proof.publicInput.initialRoot.assertEquals(mgrStoreCommitment);
+
+    proof.verify();
+
+    // ?: WIP... reduce actions
+
+    // updat the zkApp's commitment
+    this.storeCommitment.set(proof.publicInput.latestRoot);
+
+    // inform storage to commit pending transformations proven on the initial commitment
+    this.emitEvent('store:commit', proof.publicInput.initialRoot);
   }
 }
