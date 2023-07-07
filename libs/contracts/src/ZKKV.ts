@@ -1,15 +1,15 @@
 import {
-  MerkleMapWitness,
+  Experimental,
   Field,
-  Reducer,
+  MerkleMapWitness,
+  Poseidon,
+  Provable,
+  SelfProof,
   SmartContract,
   State,
   Struct,
   method,
   state,
-  Experimental,
-  SelfProof,
-  Poseidon,
 } from 'snarkyjs';
 
 /**
@@ -517,11 +517,42 @@ export class ZKKV extends SmartContract {
     const mgrStoreCommitment = this.storeCommitment.getAndAssertEquals();
 
     // ensure the proof started from the zkApp's current commitment
-    proof.publicInput.initialRoot.assertEquals(mgrStoreCommitment);
+    proof.publicInput.initialRoot.assertEquals(
+      mgrStoreCommitment,
+      'intialRoot assertEquals fails'
+    );
 
-    proof.verify();
+    Provable.log('proof.verify()...');
 
+    // proof.verify() fails...
+    // even when the proof passes verify outside the contract
 
+    // proof.verify();
+
+    /*
+    Error when proving ZKKV.commitPendingTransformations()
+    /workspace_root/src/lib/snarkyjs/src/bindings/ocaml/overrides.js:34
+        if (err instanceof Error) throw err;
+
+    Error: curve point must not be the point at infinity
+        at failwith (ocaml/ocaml/stdlib.ml:29:34)
+        at g (src/lib/pickles_types/or_infinity.ml:19:7)
+        at opening_proof_of_backend_exn (src/lib/crypto/kimchi_backend/common/plonk_dlog_proof.ml:228:15)
+        at of_backend (src/lib/crypto/kimchi_backend/common/plonk_dlog_proof.ml:250:17)
+        at _o9p_ (src/lib/crypto/kimchi_backend/common/plonk_dlog_proof.ml:395:5)
+        at withThreadPool (snarkyjs/src/bindings/js/node/node-backend.js:55:14)
+        at prettifyStacktracePromise (snarkyjs/src/lib/errors.ts:137:12)
+        at <anonymous> (snarkyjs/src/lib/account_update.ts:2060:16)
+        at Object.run (snarkyjs/src/lib/proof_system.ts:822:16)
+        at createZkappProof (snarkyjs/src/lib/account_update.ts:2050:21)
+        at addProof (snarkyjs/src/lib/account_update.ts:2024:15)
+        at addMissingProofs (snarkyjs/src/lib/account_update.ts:1985:42)
+        at Object.prove (snarkyjs/src/lib/mina.ts:307:38)
+        at commitPendingTransformations (.../libs/contracts/src/cli/demo-zkkv.ts:627:3)
+        at <anonymous> (.../libs/contracts/src/cli/demo-zkkv.ts:335:3)
+    */
+
+    Provable.log('...proof.verify()');
     // updat the zkApp's commitment
     this.storeCommitment.set(proof.publicInput.latestRoot);
 

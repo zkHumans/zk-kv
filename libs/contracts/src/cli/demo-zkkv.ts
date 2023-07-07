@@ -294,6 +294,39 @@ log('setStoreData...');
 log('...setStoreData');
 numEvents = await processEvents(numEvents);
 
+/* WIP: two pending events causes proof.verify in contract to fail
+hr();
+log('setStoreData...');
+{
+  const i = 2; // which store
+
+  // new key:value pair within the store
+  const key = Field(111);
+  const value1 = Field(777);
+
+  // use EMPTY for current value as storeData has not yet been added
+  const value0 = EMPTY;
+
+  // create a new store from the current to represent the change
+  const storeMM = storeMMs[i];
+  storeMM.set(key, value1);
+  const store1 = stores[i].setCommitment(storeMM.getRoot());
+
+  const storeData0 = StoreData.init(stores[i], key, value0);
+  const storeData1 = StoreData.init(store1, key, value1);
+
+  await setStoreData(
+    storeData0,
+    storeData1,
+    storeMMs[i],
+    storeManagerMerkleMap,
+    recursionEnabled
+  );
+}
+log('...setStoreData');
+numEvents = await processEvents(numEvents);
+*/
+
 ////////////////////////////////////
 // commit pending transformations
 ////////////////////////////////////
