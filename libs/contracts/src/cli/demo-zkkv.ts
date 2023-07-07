@@ -513,6 +513,7 @@ async function commitPendingTransformations(
 
   const rollupStepInfo: any[] = [];
 
+  hr();
   log('computing transitions...');
   pendingEvents.forEach(({ data0, data1 }) => {
     // get witness for data within the store
@@ -542,8 +543,8 @@ async function commitPendingTransformations(
     });
   });
   log('...computing transitions');
-  hr();
 
+  hr();
   log('making first set of proofs...');
   const rollupProofs: Proof<RollupState, void>[] = [];
   for (const { initialRoot, latestRoot, transformation } of rollupStepInfo) {
@@ -561,8 +562,8 @@ async function commitPendingTransformations(
     rollupProofs.push(proof);
   }
   log('...making first set of proofs');
-  hr();
 
+  hr();
   log('merging proofs...');
   let proof: Proof<RollupState, void> = rollupProofs[0];
   for (let i = 1; i < rollupProofs.length; i++) {
@@ -579,6 +580,7 @@ async function commitPendingTransformations(
   }
   log('...merging proofs');
 
+  hr();
   log('verifying rollup...');
   console.log('  proof initialRoot:', proof.publicInput.initialRoot.toString());
   console.log('  proof latestRoot :', proof.publicInput.latestRoot.toString());
@@ -586,6 +588,7 @@ async function commitPendingTransformations(
   console.log('ok', ok);
   log('...verifying rollup');
 
+  hr();
   log('  tx: prove() sign() send()...');
   const tx = await Mina.transaction(feePayer, () => {
     zkapp.commitPendingTransformations(proof);

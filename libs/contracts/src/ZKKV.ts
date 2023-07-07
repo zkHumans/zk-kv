@@ -310,7 +310,7 @@ export class ZKKV extends SmartContract {
    */
   @state(Field) accumulatedTransformations = State<Field>();
 
-  reducer = Reducer({ actionType: Action });
+  // ?: reducer = Reducer({ actionType: Action });
 
   override events = {
     // for updating off-chain data
@@ -469,7 +469,6 @@ export class ZKKV extends SmartContract {
 
   /**
    * Update data in a store that has been added to the Manager.
-   * Uses reducer for txn concurrency.
    *
    * To add store data, use data0 value = EMPTY
    * To del store data, use data1 value = EMPTY
@@ -504,7 +503,7 @@ export class ZKKV extends SmartContract {
 
     // WIP: ?: what should be dispatched?
     // ?: pending record id --> settlementChecksum
-    this.reducer.dispatch({ root0: mgrRoot0, data0, data1 });
+    // ?: this.reducer.dispatch({ root0: mgrRoot0, data0, data1 });
 
     this.emitEvent('store:pending', {
       commitmentPending: mgrStoreCommitment,
@@ -522,7 +521,6 @@ export class ZKKV extends SmartContract {
 
     proof.verify();
 
-    // ?: WIP... reduce actions
 
     // updat the zkApp's commitment
     this.storeCommitment.set(proof.publicInput.latestRoot);
