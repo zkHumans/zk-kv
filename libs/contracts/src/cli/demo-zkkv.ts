@@ -502,12 +502,12 @@ async function commitPendingTransformations(
   managerMM: MerkleMap,
   storesMM: Array<MerkleMap>
 ) {
-  console.log('pending events:', pendingEvents);
+  console.log('pending events:', JSON.stringify(pendingEvents, null, 2));
 
   // lil help... db lookup by store id are easy
   const whichStore = (identifier: Field) => {
     for (let i = 0; i < 4; i++)
-      if (stores[i].identifier.equals(identifier)) return i;
+      if (stores[i].identifier.equals(identifier).toBoolean()) return i;
     return -1;
   };
 
@@ -516,16 +516,17 @@ async function commitPendingTransformations(
   log('computing transitions...');
   pendingEvents.forEach(({ data0, data1 }) => {
     // get witness for data within the store
-    const storeMM = storesMM[whichStore(data1.store.identifier)];
-    const witnessStore = storeMM.getWitness(data1.getKey());
+    const s = whichStore(data1.store.identifier);
+    log('  which store:', s);
+    const witnessStore = storesMM[s].getWitness(data1.getKey());
 
     // get witness for store within the manager
     const witnessManager = managerMM.getWitness(data1.store.getKey());
 
     const initialRoot = managerMM.getRoot();
 
-    storeMM.set(data1.getKey(), data1.getValue());
-    managerMM.set(data1.store.getKey(), storeMM.getRoot());
+    storesMM[s].set(data1.getKey(), data1.getValue());
+    managerMM.set(data1.store.getKey(), storesMM[s].getRoot());
 
     const latestRoot = managerMM.getRoot();
 
@@ -541,6 +542,7 @@ async function commitPendingTransformations(
     });
   });
   log('...computing transitions');
+  hr();
 
   log('making first set of proofs...');
   const rollupProofs: Proof<RollupState, void>[] = [];
@@ -559,6 +561,7 @@ async function commitPendingTransformations(
     rollupProofs.push(proof);
   }
   log('...making first set of proofs');
+  hr();
 
   log('merging proofs...');
   let proof: Proof<RollupState, void> = rollupProofs[0];
@@ -577,7 +580,8 @@ async function commitPendingTransformations(
   log('...merging proofs');
 
   log('verifying rollup...');
-  console.log(proof.publicInput.latestRoot.toString());
+  console.log('  proof initialRoot:', proof.publicInput.initialRoot.toString());
+  console.log('  proof latestRoot :', proof.publicInput.latestRoot.toString());
   const ok = await verify(proof.toJSON(), rollupTransformationVerificationKey);
   console.log('ok', ok);
   log('...verifying rollup');
