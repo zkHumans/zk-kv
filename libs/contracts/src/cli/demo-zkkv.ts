@@ -567,12 +567,11 @@ async function commitPendingTransformations(
     rollupStepInfo.push({
       initialRoot,
       latestRoot,
-      transformation: new StoreDataTransformation({
-        data0,
-        data1,
-        witnessStore,
-        witnessManager,
-      }),
+      key: data0.getKey(),
+      value0: data0.getValue(),
+      value1: data1.getValue(),
+      witnessStore,
+      witnessManager,
     });
   });
   log('...computing transitions');
@@ -580,17 +579,33 @@ async function commitPendingTransformations(
   hr();
   log('making first set of proofs...');
   const rollupProofs: Proof<RollupState, void>[] = [];
-  for (const { initialRoot, latestRoot, transformation } of rollupStepInfo) {
+  for (const {
+    initialRoot,
+    latestRoot,
+    key,
+    value0,
+    value1,
+    witnessStore,
+    witnessManager,
+  } of rollupStepInfo) {
     const rollup = RollupState.createOneStep(
       initialRoot,
       latestRoot,
-      transformation
+      key,
+      value0,
+      value1,
+      witnessStore,
+      witnessManager
     );
     const proof = await RollupTransformations.oneStep(
       rollup,
       initialRoot,
       latestRoot,
-      transformation
+      key,
+      value0,
+      value1,
+      witnessStore,
+      witnessManager
     );
     rollupProofs.push(proof);
   }

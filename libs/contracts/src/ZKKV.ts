@@ -198,31 +198,20 @@ export class RollupState extends Struct({
   static createOneStep(
     initialRoot: Field,
     latestRoot: Field,
-    transformation: StoreDataTransformation
+    key: Field,
+    value0: Field,
+    value1: Field,
+    witnessStore: MerkleMapWitness,
+    witnessManager: MerkleMapWitness
   ) {
-    // how this differs from rollup-state example:
-    // key:          data0.getKey() || data1.getKey() --> same key
-    // currentValue: data0.getValue()
-    // incrementAmount -> currentValue.add(incrementAmount): data1.getValue()
-
-    const { data0, data1, witnessStore, witnessManager } = transformation;
-
-    // assert keys (store identifiers) are the same - necessary?
-    data0.getKey().assertEquals(data1.getKey(), 'StoreData keys do not match!');
-    data0.store
-      .getKey()
-      .assertEquals(data1.store.getKey(), 'Store keys do not match!');
-
     // assert current value in the store in the manager
-    const [storeRoot0, storeKey0] = witnessStore.computeRootAndKey(
-      data0.getValue()
-    );
+    const [storeRoot0, storeKey0] = witnessStore.computeRootAndKey(value0);
     const [mgrRoot0] = witnessManager.computeRootAndKey(storeRoot0);
     mgrRoot0.assertEquals(initialRoot, 'current StoreData assertion failed!');
-    storeKey0.assertEquals(data0.getKey());
+    storeKey0.assertEquals(key);
 
     // assert latest root based on the new data in the store in the manager
-    const [storeRoot1] = witnessStore.computeRootAndKey(data1.getValue());
+    const [storeRoot1] = witnessStore.computeRootAndKey(value1);
     const [mgrRoot1] = witnessManager.computeRootAndKey(storeRoot1);
     latestRoot.assertEquals(mgrRoot1);
 
@@ -250,17 +239,33 @@ export const RollupTransformations = Experimental.ZkProgram({
 
   methods: {
     oneStep: {
-      privateInputs: [Field, Field, StoreDataTransformation],
+      privateInputs: [
+        Field,
+        Field,
+        Field,
+        Field,
+        Field,
+        MerkleMapWitness,
+        MerkleMapWitness,
+      ],
       method(
         state: RollupState,
         initialRoot: Field,
         latestRoot: Field,
-        transformation: StoreDataTransformation
+        key: Field,
+        value0: Field,
+        value1: Field,
+        witnessStore: MerkleMapWitness,
+        witnessManager: MerkleMapWitness
       ) {
         const computedState = RollupState.createOneStep(
           initialRoot,
           latestRoot,
-          transformation
+          key,
+          value0,
+          value1,
+          witnessStore,
+          witnessManager
         );
         RollupState.assertEquals(computedState, state);
       },
@@ -522,12 +527,10 @@ export class ZKKV extends SmartContract {
       'intialRoot assertEquals fails'
     );
 
-    Provable.log('proof.verify()...');
-
     // proof.verify() fails...
     // even when the proof passes verify outside the contract
 
-    // proof.verify();
+    proof.verify();
 
     /*
     Error when proving ZKKV.commitPendingTransformations()
@@ -552,7 +555,6 @@ export class ZKKV extends SmartContract {
         at <anonymous> (.../libs/contracts/src/cli/demo-zkkv.ts:335:3)
     */
 
-    Provable.log('...proof.verify()');
     // updat the zkApp's commitment
     this.storeCommitment.set(proof.publicInput.latestRoot);
 
