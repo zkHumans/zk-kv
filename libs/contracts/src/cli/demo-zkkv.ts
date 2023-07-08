@@ -20,7 +20,6 @@ import {
   RollupTransformations,
   EventStorePending,
   RollupState,
-  StoreDataTransformation,
 } from '../ZKKV';
 
 ////////////////////////////////////////////////////////////////////////
@@ -29,12 +28,14 @@ import {
 
 let proofsEnabled = strToBool(process.env['ZK_PROOFS_ENABLED']) ?? true;
 const recursionEnabled = strToBool(process.env['RECURSION_ENABLED']) ?? true;
+const demoRecursionOnly = strToBool(process.env['RECURSION_ONLY']) ?? false;
 
 // recursion requires compiled contract
 if (recursionEnabled) proofsEnabled = true;
 
 console.log('ZK Proofs Enabled:', proofsEnabled);
 console.log('Recursion Enabled:', recursionEnabled);
+console.log('Recursion Only   :', demoRecursionOnly);
 
 ////////////////////////////////////////////////////////////////////////
 // lil utilities
@@ -172,85 +173,95 @@ log('...addStore stores[3]');
 numEvents = await processEvents(numEvents);
 
 // attempt to add an already added Store
-hr();
-log('addStore already added; should fail...');
-try {
-  await addStore(stores[1], storeManagerMerkleMap);
-} catch (
-  err: any // eslint-disable-line @typescript-eslint/no-explicit-any
-) {
-  console.log(err.message);
+if (!demoRecursionOnly) {
+  hr();
+  log('addStore already added; should fail...');
+  try {
+    await addStore(stores[1], storeManagerMerkleMap);
+  } catch (
+    err: any // eslint-disable-line @typescript-eslint/no-explicit-any
+  ) {
+    console.log(err.message);
+  }
+  log('...addStore already added; should fail');
+  numEvents = await processEvents(numEvents);
 }
-log('...addStore already added; should fail');
-numEvents = await processEvents(numEvents);
 
 ////////////////////////////////////////////////////////////////////////
 // update Store
 ////////////////////////////////////////////////////////////////////////
 
 // set (update) an added Store's value
-hr();
-log('setStore stores[2]...');
-// add something to the store
-storeMMs[2].set(Field(100), Field(100));
-const store1 = stores[2].setCommitment(storeMMs[2].getRoot());
-await setStore(stores[2], store1, storeManagerMerkleMap);
-log('...setStore stores[2]');
-numEvents = await processEvents(numEvents);
-
-// attempt to set a store that has not been added
-hr();
-log('setStore not added; should fail...');
-try {
-  const storeMM = new MerkleMap();
-  const store0 = new Store({
-    identifier: Poseidon.hash(CircuitString.fromString('!store').toFields()),
-    commitment: storeMM.getRoot(),
-  });
+if (!demoRecursionOnly) {
+  hr();
+  log('setStore stores[2]...');
   // add something to the store
-  storeMM.set(Field(100), Field(100));
-  const store1 = store0.setCommitment(storeMM.getRoot());
-  await setStore(store0, store1, storeManagerMerkleMap);
-} catch (
-  err: any // eslint-disable-line @typescript-eslint/no-explicit-any
-) {
-  console.log(err.message);
+  storeMMs[2].set(Field(100), Field(100));
+  const store1 = stores[2].setCommitment(storeMMs[2].getRoot());
+  await setStore(stores[2], store1, storeManagerMerkleMap);
+  log('...setStore stores[2]');
+  numEvents = await processEvents(numEvents);
+
+  // attempt to set a store that has not been added
+  hr();
+  log('setStore not added; should fail...');
+  try {
+    const storeMM = new MerkleMap();
+    const store0 = new Store({
+      identifier: Poseidon.hash(CircuitString.fromString('!store').toFields()),
+      commitment: storeMM.getRoot(),
+    });
+    // add something to the store
+    storeMM.set(Field(100), Field(100));
+    const store1 = store0.setCommitment(storeMM.getRoot());
+    await setStore(store0, store1, storeManagerMerkleMap);
+  } catch (
+    err: any // eslint-disable-line @typescript-eslint/no-explicit-any
+  ) {
+    console.log(err.message);
+  }
+  log('...setStore not added; should fail');
+  numEvents = await processEvents(numEvents);
 }
-log('...setStore not added; should fail');
-numEvents = await processEvents(numEvents);
 
 ////////////////////////////////////////////////////////////////////////
 // set Data in Store
 ////////////////////////////////////////////////////////////////////////
-hr();
-log('setStoreData...');
-{
-  const i = 2; // which store
+if (!demoRecursionOnly) {
+  hr();
+  log('setStoreData...');
+  {
+    const i = 2; // which store
 
-  // new key:value pair within the store
-  const key = Field(222);
-  const value1 = Field(999);
+    // new key:value pair within the store
+    const key = Field(222);
+    const value1 = Field(999);
 
-  // use EMPTY for current value as storeData has not yet been added
-  const value0 = EMPTY;
+    // use EMPTY for current value as storeData has not yet been added
+    const value0 = EMPTY;
 
-  // create a new store from the current to represent the change
-  const storeMM = storeMMs[i];
-  storeMM.set(key, value1);
-  const store1 = stores[i].setCommitment(storeMM.getRoot());
+    // deep clone MerkleMap is difficult, so set/unset to preserve
+    const prevValue = storeMMs[i].get(key);
+    storeMMs[i].set(key, value1);
+    const storeRoot = storeMMs[i].getRoot();
+    storeMMs[i].set(key, prevValue);
 
-  const storeData0 = StoreData.init(stores[i], key, value0);
-  const storeData1 = StoreData.init(store1, key, value1);
+    // create a new store from the current to represent the change
+    const store1 = stores[i].setCommitment(storeRoot);
 
-  await setStoreData(
-    storeData0,
-    storeData1,
-    storeMMs[i],
-    storeManagerMerkleMap
-  );
+    const storeData0 = StoreData.init(stores[i], key, value0);
+    const storeData1 = StoreData.init(store1, key, value1);
+
+    await setStoreData(
+      storeData0,
+      storeData1,
+      storeMMs[i],
+      storeManagerMerkleMap
+    );
+  }
+  log('...setStoreData');
+  numEvents = await processEvents(numEvents);
 }
-log('...setStoreData');
-numEvents = await processEvents(numEvents);
 
 if (!recursionEnabled) tada();
 
@@ -275,10 +286,14 @@ log('setStoreData...');
   // use EMPTY for current value as storeData has not yet been added
   const value0 = EMPTY;
 
+  // deep clone MerkleMap is difficult, so set/unset to preserve
+  const prevValue = storeMMs[i].get(key);
+  storeMMs[i].set(key, value1);
+  const storeRoot = storeMMs[i].getRoot();
+  storeMMs[i].set(key, prevValue);
+
   // create a new store from the current to represent the change
-  const storeMM = storeMMs[i];
-  storeMM.set(key, value1);
-  const store1 = stores[i].setCommitment(storeMM.getRoot());
+  const store1 = stores[i].setCommitment(storeRoot);
 
   const storeData0 = StoreData.init(stores[i], key, value0);
   const storeData1 = StoreData.init(store1, key, value1);
@@ -294,7 +309,7 @@ log('setStoreData...');
 log('...setStoreData');
 numEvents = await processEvents(numEvents);
 
-/* WIP: two pending events causes proof.verify in contract to fail
+// WIP: two pending events causes proof.verify in contract to fail
 hr();
 log('setStoreData...');
 {
@@ -307,10 +322,14 @@ log('setStoreData...');
   // use EMPTY for current value as storeData has not yet been added
   const value0 = EMPTY;
 
+  // deep clone MerkleMap is difficult, so set/unset to preserve
+  const prevValue = storeMMs[i].get(key);
+  storeMMs[i].set(key, value1);
+  const storeRoot = storeMMs[i].getRoot();
+  storeMMs[i].set(key, prevValue);
+
   // create a new store from the current to represent the change
-  const storeMM = storeMMs[i];
-  storeMM.set(key, value1);
-  const store1 = stores[i].setCommitment(storeMM.getRoot());
+  const store1 = stores[i].setCommitment(storeRoot);
 
   const storeData0 = StoreData.init(stores[i], key, value0);
   const storeData1 = StoreData.init(store1, key, value1);
@@ -325,7 +344,6 @@ log('setStoreData...');
 }
 log('...setStoreData');
 numEvents = await processEvents(numEvents);
-*/
 
 ////////////////////////////////////
 // commit pending transformations
@@ -341,8 +359,9 @@ log('commitPendingTransformations...');
   );
 }
 log('...commitPendingTransformations');
-numEvents = await processEvents(numEvents);
+await processEvents(numEvents, false);
 
+hr();
 tada();
 
 ////////////////////////////////////////////////////////////////////////
@@ -355,7 +374,7 @@ tada();
  * Use offset param and returned counter output
  * to processEvents sequentually after each txn.
  */
-async function processEvents(offset = 0) {
+async function processEvents(offset = 0, checkStorage = true) {
   let counter = 0;
 
   const events = await zkapp.fetchEvents();
@@ -370,18 +389,19 @@ async function processEvents(offset = 0) {
 
     // TODO: a better way to access event data?
     const js = JSON.parse(JSON.stringify(event.event.data));
+    console.log(`Event: ${event.type}`, js);
+
     switch (event.type) {
       case 'store:new':
         {
-          console.log('Event: store:new', js);
-
           // off-chain storage should create the record
         }
         break;
 
       case 'store:set':
         {
-          console.log('Event: store:set', js);
+          // off-chain storage should set the record
+
           const ev = EventStore.fromJSON(js);
 
           // add to the MM
@@ -390,15 +410,11 @@ async function processEvents(offset = 0) {
             const s = ev.root1.equals(initialManagerMM.getRoot()).toBoolean();
             console.log(s ? '✅' : '❌', 'MerkleMap set from event');
           }
-
-          // off-chain storage should set the record
         }
         break;
 
       case 'store:pending':
         {
-          console.log('Event: store:pending', js);
-
           // off-chain storage should create the record as pending
 
           storePending.push(EventStorePending.fromJSON(js));
@@ -407,9 +423,7 @@ async function processEvents(offset = 0) {
 
       case 'store:commit':
         {
-          console.log('Event: store:commit', js);
-
-          // off-chain storage should create the record as pending
+          // off-chain storage should update pending records
         }
         break;
 
@@ -423,9 +437,12 @@ async function processEvents(offset = 0) {
   console.log('MM 2:', initialManagerMM.getRoot().toString());
 
   // check to confirm sync of MMs
-  const witness1 = storeManagerMerkleMap.getWitness(stores[3].getKey());
-  const witness2 = initialManagerMM.getWitness(stores[3].getKey());
-  witness1.assertEquals(witness2);
+  if (checkStorage) {
+    const witness1 = storeManagerMerkleMap.getWitness(stores[3].getKey());
+    const witness2 = initialManagerMM.getWitness(stores[3].getKey());
+    witness1.assertEquals(witness2);
+  }
+
   log('...Process Events');
 
   return counter;
@@ -537,40 +554,50 @@ async function commitPendingTransformations(
 ) {
   console.log('pending events:', JSON.stringify(pendingEvents, null, 2));
 
-  // lil help... db lookup by store id are easy
+  // lil help...
   const whichStore = (identifier: Field) => {
     for (let i = 0; i < 4; i++)
       if (stores[i].identifier.equals(identifier).toBoolean()) return i;
     return -1;
   };
 
-  const rollupStepInfo: any[] = [];
-
   hr();
   log('computing transitions...');
+  const rollupStepInfo: any[] = [];
   pendingEvents.forEach(({ data0, data1 }) => {
-    // get witness for data within the store
     const s = whichStore(data1.store.identifier);
     log('  which store:', s);
-    const witnessStore = storesMM[s].getWitness(data1.getKey());
+
+    // DO NOT get witness for data within the store
+    // this was already verified when a transformation was submitted to the zkApp
+    // now only need to prove the manager's merkle tree transformation
+    // X: const witnessStore = storesMM[s].getWitness(data1.getKey());
 
     // get witness for store within the manager
     const witnessManager = managerMM.getWitness(data1.store.getKey());
 
     const initialRoot = managerMM.getRoot();
+    const value0 = storesMM[s].getRoot();
 
     storesMM[s].set(data1.getKey(), data1.getValue());
     managerMM.set(data1.store.getKey(), storesMM[s].getRoot());
 
     const latestRoot = managerMM.getRoot();
+    const value1 = storesMM[s].getRoot();
+    const key = data0.store.getKey();
+
+    console.log('  initialRoot =', initialRoot.toString());
+    console.log('  latestRoot  =', latestRoot.toString());
+    console.log('  key         =', key.toString());
+    console.log('  value0      =', value0.toString());
+    console.log('  value1      =', value1.toString());
 
     rollupStepInfo.push({
       initialRoot,
       latestRoot,
-      key: data0.getKey(),
-      value0: data0.getValue(),
-      value1: data1.getValue(),
-      witnessStore,
+      key,
+      value0,
+      value1,
       witnessManager,
     });
   });
@@ -585,7 +612,6 @@ async function commitPendingTransformations(
     key,
     value0,
     value1,
-    witnessStore,
     witnessManager,
   } of rollupStepInfo) {
     const rollup = RollupState.createOneStep(
@@ -594,7 +620,6 @@ async function commitPendingTransformations(
       key,
       value0,
       value1,
-      witnessStore,
       witnessManager
     );
     const proof = await RollupTransformations.oneStep(
@@ -604,7 +629,6 @@ async function commitPendingTransformations(
       key,
       value0,
       value1,
-      witnessStore,
       witnessManager
     );
     rollupProofs.push(proof);

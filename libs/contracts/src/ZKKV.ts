@@ -3,7 +3,6 @@ import {
   Field,
   MerkleMapWitness,
   Poseidon,
-  Provable,
   SelfProof,
   SmartContract,
   State,
@@ -201,18 +200,23 @@ export class RollupState extends Struct({
     key: Field,
     value0: Field,
     value1: Field,
-    witnessStore: MerkleMapWitness,
+    // X: witnessStore: MerkleMapWitness,
     witnessManager: MerkleMapWitness
   ) {
-    // assert current value in the store in the manager
-    const [storeRoot0, storeKey0] = witnessStore.computeRootAndKey(value0);
-    const [mgrRoot0] = witnessManager.computeRootAndKey(storeRoot0);
-    mgrRoot0.assertEquals(initialRoot, 'current StoreData assertion failed!');
-    storeKey0.assertEquals(key);
+    // X: // assert current value in the store in the manager
+    // X: const [storeRoot0, storeKey0] = witnessStore.computeRootAndKey(value0);
+    // X: const [mgrRoot0] = witnessManager.computeRootAndKey(storeRoot0);
+    // X: mgrRoot0.assertEquals(initialRoot, 'current StoreData assertion failed!');
+    // X: storeKey0.assertEquals(key);
+    const [mgrRoot0, mgrKey0] = witnessManager.computeRootAndKey(value0);
+    initialRoot.assertEquals(mgrRoot0);
+    mgrKey0.assertEquals(key);
 
-    // assert latest root based on the new data in the store in the manager
-    const [storeRoot1] = witnessStore.computeRootAndKey(value1);
-    const [mgrRoot1] = witnessManager.computeRootAndKey(storeRoot1);
+    // X: // assert latest root based on the new data in the store in the manager
+    // X: const [storeRoot1] = witnessStore.computeRootAndKey(value1);
+    // X: const [mgrRoot1] = witnessManager.computeRootAndKey(storeRoot1);
+    // X: latestRoot.assertEquals(mgrRoot1);
+    const [mgrRoot1] = witnessManager.computeRootAndKey(value1);
     latestRoot.assertEquals(mgrRoot1);
 
     return new RollupState({
@@ -245,7 +249,7 @@ export const RollupTransformations = Experimental.ZkProgram({
         Field,
         Field,
         Field,
-        MerkleMapWitness,
+        // X: MerkleMapWitness,
         MerkleMapWitness,
       ],
       method(
@@ -255,7 +259,7 @@ export const RollupTransformations = Experimental.ZkProgram({
         key: Field,
         value0: Field,
         value1: Field,
-        witnessStore: MerkleMapWitness,
+        // X: witnessStore: MerkleMapWitness,
         witnessManager: MerkleMapWitness
       ) {
         const computedState = RollupState.createOneStep(
@@ -264,7 +268,7 @@ export const RollupTransformations = Experimental.ZkProgram({
           key,
           value0,
           value1,
-          witnessStore,
+          // X: witnessStore,
           witnessManager
         );
         RollupState.assertEquals(computedState, state);
@@ -527,33 +531,7 @@ export class ZKKV extends SmartContract {
       'intialRoot assertEquals fails'
     );
 
-    // proof.verify() fails...
-    // even when the proof passes verify outside the contract
-
     proof.verify();
-
-    /*
-    Error when proving ZKKV.commitPendingTransformations()
-    /workspace_root/src/lib/snarkyjs/src/bindings/ocaml/overrides.js:34
-        if (err instanceof Error) throw err;
-
-    Error: curve point must not be the point at infinity
-        at failwith (ocaml/ocaml/stdlib.ml:29:34)
-        at g (src/lib/pickles_types/or_infinity.ml:19:7)
-        at opening_proof_of_backend_exn (src/lib/crypto/kimchi_backend/common/plonk_dlog_proof.ml:228:15)
-        at of_backend (src/lib/crypto/kimchi_backend/common/plonk_dlog_proof.ml:250:17)
-        at _o9p_ (src/lib/crypto/kimchi_backend/common/plonk_dlog_proof.ml:395:5)
-        at withThreadPool (snarkyjs/src/bindings/js/node/node-backend.js:55:14)
-        at prettifyStacktracePromise (snarkyjs/src/lib/errors.ts:137:12)
-        at <anonymous> (snarkyjs/src/lib/account_update.ts:2060:16)
-        at Object.run (snarkyjs/src/lib/proof_system.ts:822:16)
-        at createZkappProof (snarkyjs/src/lib/account_update.ts:2050:21)
-        at addProof (snarkyjs/src/lib/account_update.ts:2024:15)
-        at addMissingProofs (snarkyjs/src/lib/account_update.ts:1985:42)
-        at Object.prove (snarkyjs/src/lib/mina.ts:307:38)
-        at commitPendingTransformations (.../libs/contracts/src/cli/demo-zkkv.ts:627:3)
-        at <anonymous> (.../libs/contracts/src/cli/demo-zkkv.ts:335:3)
-    */
 
     // updat the zkApp's commitment
     this.storeCommitment.set(proof.publicInput.latestRoot);
