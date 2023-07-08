@@ -576,25 +576,25 @@ async function commitPendingTransformations(
     // get witness for store within the manager
     const witnessManager = managerMM.getWitness(data1.store.getKey());
 
-    const initialRoot = managerMM.getRoot();
+    const root0 = managerMM.getRoot();
     const value0 = storesMM[s].getRoot();
 
     storesMM[s].set(data1.getKey(), data1.getValue());
     managerMM.set(data1.store.getKey(), storesMM[s].getRoot());
 
-    const latestRoot = managerMM.getRoot();
+    const root1 = managerMM.getRoot();
     const value1 = storesMM[s].getRoot();
     const key = data0.store.getKey();
 
-    console.log('  initialRoot =', initialRoot.toString());
-    console.log('  latestRoot  =', latestRoot.toString());
-    console.log('  key         =', key.toString());
-    console.log('  value0      =', value0.toString());
-    console.log('  value1      =', value1.toString());
+    console.log('  root0  =', root0.toString());
+    console.log('  root1  =', root1.toString());
+    console.log('  key    =', key.toString());
+    console.log('  value0 =', value0.toString());
+    console.log('  value1 =', value1.toString());
 
     rollupStepInfo.push({
-      initialRoot,
-      latestRoot,
+      root0,
+      root1,
       key,
       value0,
       value1,
@@ -607,16 +607,16 @@ async function commitPendingTransformations(
   log('making first set of proofs...');
   const rollupProofs: Proof<RollupState, void>[] = [];
   for (const {
-    initialRoot,
-    latestRoot,
+    root0,
+    root1,
     key,
     value0,
     value1,
     witnessManager,
   } of rollupStepInfo) {
     const rollup = RollupState.createOneStep(
-      initialRoot,
-      latestRoot,
+      root0,
+      root1,
       key,
       value0,
       value1,
@@ -624,8 +624,8 @@ async function commitPendingTransformations(
     );
     const proof = await RollupTransformations.oneStep(
       rollup,
-      initialRoot,
-      latestRoot,
+      root0,
+      root1,
       key,
       value0,
       value1,
@@ -654,8 +654,8 @@ async function commitPendingTransformations(
 
   hr();
   log('verifying rollup...');
-  console.log('  proof initialRoot:', proof.publicInput.initialRoot.toString());
-  console.log('  proof latestRoot :', proof.publicInput.latestRoot.toString());
+  console.log('  proof root0:', proof.publicInput.root0.toString());
+  console.log('  proof root1:', proof.publicInput.root1.toString());
   const ok = await verify(proof.toJSON(), rollupTransformationVerificationKey);
   console.log('ok', ok);
   log('...verifying rollup');

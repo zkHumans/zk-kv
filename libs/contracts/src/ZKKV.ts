@@ -15,8 +15,8 @@ import {
  * A Store.
  */
 export class Store extends Struct({
-  identifier: Field, // aka id
-  commitment: Field, // aka root
+  identifier: Field,
+  commitment: Field,
 }) {
   getKey(): Field {
     return this.identifier;
@@ -191,12 +191,12 @@ export class Action extends Struct({
 }) {}
 
 export class RollupState extends Struct({
-  initialRoot: Field,
-  latestRoot: Field,
+  root0: Field, // initial root
+  root1: Field, // latest root
 }) {
   static createOneStep(
-    initialRoot: Field,
-    latestRoot: Field,
+    root0: Field,
+    root1: Field,
     key: Field,
     value0: Field,
     value1: Field,
@@ -206,35 +206,35 @@ export class RollupState extends Struct({
     // X: // assert current value in the store in the manager
     // X: const [storeRoot0, storeKey0] = witnessStore.computeRootAndKey(value0);
     // X: const [mgrRoot0] = witnessManager.computeRootAndKey(storeRoot0);
-    // X: mgrRoot0.assertEquals(initialRoot, 'current StoreData assertion failed!');
+    // X: mgrRoot0.assertEquals(root0, 'current StoreData assertion failed!');
     // X: storeKey0.assertEquals(key);
     const [mgrRoot0, mgrKey0] = witnessManager.computeRootAndKey(value0);
-    initialRoot.assertEquals(mgrRoot0);
+    root0.assertEquals(mgrRoot0);
     mgrKey0.assertEquals(key);
 
     // X: // assert latest root based on the new data in the store in the manager
     // X: const [storeRoot1] = witnessStore.computeRootAndKey(value1);
     // X: const [mgrRoot1] = witnessManager.computeRootAndKey(storeRoot1);
-    // X: latestRoot.assertEquals(mgrRoot1);
+    // X: root1.assertEquals(mgrRoot1);
     const [mgrRoot1] = witnessManager.computeRootAndKey(value1);
-    latestRoot.assertEquals(mgrRoot1);
+    root1.assertEquals(mgrRoot1);
 
     return new RollupState({
-      initialRoot,
-      latestRoot,
+      root0,
+      root1,
     });
   }
 
   static createMerged(state1: RollupState, state2: RollupState) {
     return new RollupState({
-      initialRoot: state1.initialRoot,
-      latestRoot: state2.latestRoot,
+      root0: state1.root0,
+      root1: state2.root1,
     });
   }
 
   static assertEquals(state1: RollupState, state2: RollupState) {
-    state1.initialRoot.assertEquals(state2.initialRoot);
-    state1.latestRoot.assertEquals(state2.latestRoot);
+    state1.root0.assertEquals(state2.root0);
+    state1.root1.assertEquals(state2.root1);
   }
 }
 
@@ -254,8 +254,8 @@ export const RollupTransformations = Experimental.ZkProgram({
       ],
       method(
         state: RollupState,
-        initialRoot: Field,
-        latestRoot: Field,
+        root0: Field,
+        root1: Field,
         key: Field,
         value0: Field,
         value1: Field,
@@ -263,8 +263,8 @@ export const RollupTransformations = Experimental.ZkProgram({
         witnessManager: MerkleMapWitness
       ) {
         const computedState = RollupState.createOneStep(
-          initialRoot,
-          latestRoot,
+          root0,
+          root1,
           key,
           value0,
           value1,
@@ -286,13 +286,13 @@ export const RollupTransformations = Experimental.ZkProgram({
         rollup1proof.verify(); // A -> B
         rollup2proof.verify(); // B -> C
 
-        rollup1proof.publicInput.initialRoot.assertEquals(newState.initialRoot);
+        rollup1proof.publicInput.root0.assertEquals(newState.root0);
 
-        rollup1proof.publicInput.latestRoot.assertEquals(
-          rollup2proof.publicInput.initialRoot
+        rollup1proof.publicInput.root1.assertEquals(
+          rollup2proof.publicInput.root0
         );
 
-        rollup2proof.publicInput.latestRoot.assertEquals(newState.latestRoot);
+        rollup2proof.publicInput.root1.assertEquals(newState.root1);
       },
     },
   },
@@ -526,7 +526,7 @@ export class ZKKV extends SmartContract {
     const mgrStoreCommitment = this.storeCommitment.getAndAssertEquals();
 
     // ensure the proof started from the zkApp's current commitment
-    proof.publicInput.initialRoot.assertEquals(
+    proof.publicInput.root0.assertEquals(
       mgrStoreCommitment,
       'intialRoot assertEquals fails'
     );
@@ -534,12 +534,12 @@ export class ZKKV extends SmartContract {
     proof.verify();
 
     // updat the zkApp's commitment
-    this.storeCommitment.set(proof.publicInput.latestRoot);
+    this.storeCommitment.set(proof.publicInput.root1);
 
     // inform storage to commit pending transformations proven on the initial commitment
     this.emitEvent('store:commit', {
-      commitmentPending: proof.publicInput.initialRoot,
-      commitmentSettled: proof.publicInput.latestRoot,
+      commitmentPending: proof.publicInput.root0,
+      commitmentSettled: proof.publicInput.root1,
     });
   }
 }
