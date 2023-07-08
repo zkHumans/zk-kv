@@ -331,17 +331,8 @@ export class ZKKV extends SmartContract {
     'store:commit': EventStoreCommit,
   };
 
-  @state(Field) num = State<Field>();
-
   override init() {
     super.init();
-    this.num.set(Field(1));
-  }
-
-  @method update() {
-    const currentState = this.num.getAndAssertEquals();
-    const newState = currentState.add(2);
-    this.num.set(newState);
   }
 
   // add a store; only if it has not already been added
